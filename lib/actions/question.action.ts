@@ -21,10 +21,10 @@ export async function getQuestions(params: GetQuestionsParams) {
 
     const query: FilterQuery<typeof Question> = {};
 
-    if(searchQuery) {
+    if (searchQuery) {
       query.$or = [
-        { title: { $regex: new RegExp(searchQuery, "i")}},
-        { content: { $regex: new RegExp(searchQuery, "i")}},
+        { title: { $regex: new RegExp(searchQuery, "i") } },
+        { content: { $regex: new RegExp(searchQuery, "i") } },
       ]
     }
 
@@ -67,6 +67,7 @@ export async function createQuestion(params: CreateQuestionParams) {
     connectToDatabase();
 
     const { title, content, tags, author, path } = params;
+    console.log("Logger -> createQuestion -> title, content, tags, author, path:", title, content, tags, author, path)
 
     // Create the question
     const question = await Question.create({
@@ -74,13 +75,14 @@ export async function createQuestion(params: CreateQuestionParams) {
       content,
       author
     });
+    console.log("Logger -> createQuestion -> question:", question)
 
     const tagDocuments = [];
 
     // Create the tags or get them if they already exist
     for (const tag of tags) {
       const existingTag = await Tag.findOneAndUpdate(
-        { name: { $regex: new RegExp(`^${tag}$`, "i") } }, 
+        { name: { $regex: new RegExp(`^${tag}$`, "i") } },
         { $setOnInsert: { name: tag }, $push: { questions: question._id } },
         { upsert: true, new: true }
       )
@@ -89,7 +91,7 @@ export async function createQuestion(params: CreateQuestionParams) {
     }
 
     await Question.findByIdAndUpdate(question._id, {
-      $push: { tags: { $each: tagDocuments }}
+      $push: { tags: { $each: tagDocuments } }
     });
 
     // Create an interaction record for the user's ask_question action
@@ -101,7 +103,7 @@ export async function createQuestion(params: CreateQuestionParams) {
     })
 
     // Increment author's reputation by +5 for creating a question
-    await User.findByIdAndUpdate(author, { $inc: { reputation: 5 }})
+    await User.findByIdAndUpdate(author, { $inc: { reputation: 5 } })
 
     revalidatePath(path)
   } catch (error) {
@@ -116,10 +118,10 @@ export async function getQuestionById(params: GetQuestionByIdParams) {
     const { questionId } = params;
 
     const question = await Question.findById(questionId)
-      .populate({ path: 'tags', model: Tag, select: '_id name'})
-      .populate({ path: 'author', model: User, select: '_id clerkId name picture'})
+      .populate({ path: 'tags', model: Tag, select: '_id name' })
+      .populate({ path: 'author', model: User, select: '_id clerkId name picture' })
 
-      return question;
+    return question;
   } catch (error) {
     console.log(error);
     throw error;
@@ -134,31 +136,31 @@ export async function upvoteQuestion(params: QuestionVoteParams) {
 
     let updateQuery = {};
 
-    if(hasupVoted) {
-      updateQuery = { $pull: { upvotes: userId }}
+    if (hasupVoted) {
+      updateQuery = { $pull: { upvotes: userId } }
     } else if (hasdownVoted) {
-      updateQuery = { 
+      updateQuery = {
         $pull: { downvotes: userId },
         $push: { upvotes: userId }
       }
     } else {
-      updateQuery = { $addToSet: { upvotes: userId }}
+      updateQuery = { $addToSet: { upvotes: userId } }
     }
 
     const question = await Question.findByIdAndUpdate(questionId, updateQuery, { new: true });
 
-    if(!question) {
+    if (!question) {
       throw new Error("Question not found");
     }
 
     // Increment author's reputation by +1/-1 for upvoting/revoking an upvote to the question
     await User.findByIdAndUpdate(userId, {
-      $inc: { reputation: hasupVoted ? -1 : 1}
+      $inc: { reputation: hasupVoted ? -1 : 1 }
     })
 
     // Increment author's reputation by +10/-10 for recieving an upvote/downvote to the question
     await User.findByIdAndUpdate(question.author, {
-      $inc: { reputation: hasupVoted ? -10 : 10}
+      $inc: { reputation: hasupVoted ? -10 : 10 }
     })
 
     revalidatePath(path);
@@ -176,29 +178,29 @@ export async function downvoteQuestion(params: QuestionVoteParams) {
 
     let updateQuery = {};
 
-    if(hasdownVoted) {
-      updateQuery = { $pull: { downvotes: userId }}
+    if (hasdownVoted) {
+      updateQuery = { $pull: { downvotes: userId } }
     } else if (hasupVoted) {
-      updateQuery = { 
+      updateQuery = {
         $pull: { upvotes: userId },
         $push: { downvotes: userId }
       }
     } else {
-      updateQuery = { $addToSet: { downvotes: userId }}
+      updateQuery = { $addToSet: { downvotes: userId } }
     }
 
     const question = await Question.findByIdAndUpdate(questionId, updateQuery, { new: true });
 
-    if(!question) {
+    if (!question) {
       throw new Error("Question not found");
     }
 
     // Increment author's reputation
-    await User.findByIdAndUpdate(userId, { 
+    await User.findByIdAndUpdate(userId, {
       $inc: { reputation: hasdownVoted ? -2 : 2 }
     })
 
-    await User.findByIdAndUpdate(question.author, { 
+    await User.findByIdAndUpdate(question.author, {
       $inc: { reputation: hasdownVoted ? -10 : 10 }
     })
 
@@ -218,7 +220,7 @@ export async function deleteQuestion(params: DeleteQuestionParams) {
     await Question.deleteOne({ _id: questionId });
     await Answer.deleteMany({ question: questionId });
     await Interaction.deleteMany({ question: questionId });
-    await Tag.updateMany({ questions: questionId }, { $pull: { questions: questionId }});
+    await Tag.updateMany({ questions: questionId }, { $pull: { questions: questionId } });
 
     revalidatePath(path);
   } catch (error) {
@@ -234,7 +236,7 @@ export async function editQuestion(params: EditQuestionParams) {
 
     const question = await Question.findById(questionId).populate("tags");
 
-    if(!question) {
+    if (!question) {
       throw new Error("Question not found");
     }
 
@@ -254,10 +256,10 @@ export async function getHotQuestions() {
     connectToDatabase();
 
     const hotQuestions = await Question.find({})
-      .sort({ views: -1, upvotes: -1 }) 
+      .sort({ views: -1, upvotes: -1 })
       .limit(5);
 
-      return hotQuestions;
+    return hotQuestions;
   } catch (error) {
     console.log(error);
     throw error;
